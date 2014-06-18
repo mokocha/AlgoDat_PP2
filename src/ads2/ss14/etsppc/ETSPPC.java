@@ -9,8 +9,8 @@ public class ETSPPC extends AbstractETSPPC {
     private final HashMap<Integer, Location> locationMap;
     private final double threshold;
 
-    LinkedList<Location> bestTour;
-    private HashMap<Integer, Integer[]> closestNodes;
+    private Double[][] distanceMatrix;
+    private LinkedList<Location> bestTour;
 
 	public ETSPPC(ETSPPCInstance instance) {
 
@@ -20,7 +20,7 @@ public class ETSPPC extends AbstractETSPPC {
         threshold = instance.getThreshold();
 
         bestTour = new LinkedList<Location>();
-        closestNodes = new HashMap<Integer, Integer[]>();
+        distanceMatrix = new Double[locationArray.size()][locationArray.size()];
 
         calculateClosestNodes();
     }
@@ -32,35 +32,45 @@ public class ETSPPC extends AbstractETSPPC {
         for(int node = 1; node <= locationMap.size(); node++) {
             if(canThisBeAstartNode(node)) {
                 LinkedList<Location> currentTour = new LinkedList<Location>();
-                currentTour.add(locationMap.get(node));
                 branchAndBound(node, currentTour);
             }
         }
+        System.out.println("solution " + bestTour.toString());
+        setSolution(calculateUpperBound(bestTour), bestTour);
 	}
 
-    public void branchAndBound(final int node, LinkedList<Location> tour) {
-        //pick the closest to this node
-        Integer[] neighbors = closestNodes.get(node);
+    public void branchAndBound(int node, LinkedList<Location> currentTour) {
 
-        for(int i = 0; i < neighbors.length; i++)
-        {
-            if(!tour.contains(neighbors[i])) //is this node in the tour already?
-            {
-                if(!violatedConstraint(neighbors[i], tour)) //can this node be picked? //TODO, if not picked, add later
-                {
-                    tour.add(locationMap.get(neighbors[i])); //TODO branch here?
-                } //if not violated constraint but some other shit has to come first
-            }
-        }
-
-        //if no more nodes left, and this solution is better than currentTour, set the solution
-        if(tour.size() == locationArray.size()) { //TODO and current upper bound check
-            if(calculateUpperBound(tour) <= calculateUpperBound(bestTour)) bestTour = tour; //TODO is this check necessary?
-            return;
-        }
+        System.out.println(currentTour.toString() + "\t trying to add " + node);
 
         //is this solution above the upper bound? should i check at the end?
-        if(calculateUpperBound(tour) >= threshold) return;
+        if(calculateUpperBound(currentTour) >= threshold)
+            return;
+
+        if(!currentTour.contains(node)) //is this node in the tour already?
+        {
+            if(!violatedConstraint(node, currentTour)) //can this node be picked?
+            {
+                currentTour.add(locationMap.get(node));
+
+                //if no more nodes left, and this solution is better than currentTour, set the solution
+                if(currentTour.size() == locationArray.size()) {
+                    bestTour = currentTour;
+                    System.out.println("ending with solution " + currentTour.toString());
+                    return;
+                }
+
+                for(int i = 1; i <= locationArray.size(); i++) //CHOOSE NEXT NODE AND CONTINUE!!!!!!
+                {
+                    if(!currentTour.contains(locationArray.get(i-1)))
+                    {
+                        System.out.println(currentTour.toString() + "\t branching to " + i);
+                        if(!violatedConstraint(i, currentTour)) branchAndBound(i, currentTour);
+                        else System.out.println(currentTour.toString() + "\t Constraint violation " + i);
+                    } else System.out.println(currentTour.toString() + "\t already contains " + i);
+                }
+            } else System.out.println(currentTour.toString() + "\t Constraint violation " + node);
+        } else System.out.println(currentTour.toString() + "\t already contains " + node);
     }
 
     /**
@@ -69,16 +79,15 @@ public class ETSPPC extends AbstractETSPPC {
      * @param node      the next tour candidate
      * @return          if true, then this node can be chosen for the tour, because it doesn't violate any constraints
      */
-    public boolean violatedConstraint(final int node, LinkedList<Location> tour) {
+    public boolean violatedConstraint(final int node, LinkedList<Location> currentTour) {
 
         for(PrecedenceConstraint pc : constraintList) {
             if(pc.getSecond() == node) { // if this node has a constraint on it
-                if(!tour.contains(pc.getFirst())) { // and the tour doesnt contain the previous node, you are fucked
+                if(!currentTour.contains(locationArray.get(pc.getFirst() - 1))) { // and the tour doesnt contain the previous node, you are fucked
                     return true;
                 }
-                if(violatedConstraint(pc.getFirst(), tour)) return true; // check if there is a constraint for the previous node
+                if(violatedConstraint(pc.getFirst(), currentTour)) return true; // check if there is a constraint for the previous node
             }
-
         }
         return false; // otherwise, you will live to see another day
     }
@@ -92,24 +101,12 @@ public class ETSPPC extends AbstractETSPPC {
      */
     public void calculateClosestNodes() {
 
-        for(int i = 0; i < locationArray.size(); i++) {
-            Integer[] greedyNodes = new Integer[locationMap.size()-1];
-            Map<Double, Integer> distances = new HashMap<Double, Integer>();
-
-            for(int j = 0; j < locationArray.size(); j++) //order J nodes depending on their distance to I
+        for (int i = 0; i < locationArray.size(); i++)
+        {
+            for (int j = 0; j < locationArray.size(); j++)
             {
-                if(j != i) distances.put(locationArray.get(j).distanceTo(locationArray.get(i)), j+1);
+                distanceMatrix[i][j] = locationArray.get(i).distanceTo(locationArray.get(j));
             }
-
-            //order the nodes from the HashMap based on distance into an Integer[]
-            Map<Double, Integer> treeMap = new TreeMap<Double, Integer>(distances);
-
-            int x = 0;
-            for(Map.Entry entry : treeMap.entrySet()) {
-                greedyNodes[x]=(Integer)entry.getValue();
-                x++;
-            }
-            closestNodes.put(i+1,greedyNodes);
         }
     }
 
@@ -120,10 +117,43 @@ public class ETSPPC extends AbstractETSPPC {
      * @return              true, if this node doesn't have any nodes before it
      */
     public boolean canThisBeAstartNode(int startNode) {
+        //TODO optimize by returning a list of possible start nodes instead
 
         for (int i = 0; i < constraintList.size(); i++) {
             if(constraintList.get(i).getSecond() == startNode) return false;
         }
         return true;
     }
+
+    /**
+     * returns the row corresponding to the distance matrix from this node
+     *
+     * @param row       where we are
+     * @return          how far everything else is
+     */
+    public Double[] getRow(int row) {
+
+        Double[] distances = new Double[locationArray.size()];
+
+        for (int i = 0; i < locationArray.size(); i++) distances[i] = distanceMatrix[row-1][i];
+
+        return distances;
+    }
+
+//    /**
+//     * Choose the next node to go to
+//     *
+//     * @param currentTour       where we have been
+//     * @param destinations      where we can go
+//     * @return                  where we want to go
+//     */
+//    public int chooseNextNode(LinkedList<Location> currentTour, Double[] destinations) {
+//
+//        for (int i = 0; i < locationArray.size(); i++) {
+//            if(!currentTour.contains(i+1)) {
+//
+//            }
+//        }
+//        return 0;
+//    }
 }
