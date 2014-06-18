@@ -9,7 +9,7 @@ public class ETSPPC extends AbstractETSPPC {
     private final HashMap<Integer, Location> locationMap;
     private final double threshold;
 
-    private LinkedList<Location> currentTour;
+    LinkedList<Location> bestTour;
     private HashMap<Integer, Integer[]> closestNodes;
 
 	public ETSPPC(ETSPPCInstance instance) {
@@ -19,7 +19,7 @@ public class ETSPPC extends AbstractETSPPC {
         locationArray = new ArrayList<Location>(instance.getAllLocations().values());
         threshold = instance.getThreshold();
 
-        currentTour = new LinkedList<Location>();
+        bestTour = new LinkedList<Location>();
         closestNodes = new HashMap<Integer, Integer[]>();
 
         calculateClosestNodes();
@@ -30,13 +30,13 @@ public class ETSPPC extends AbstractETSPPC {
 
         /** branch and bound **/
         for(int node = 1; node <= locationMap.size(); node++) {
-            currentTour.add(locationMap.get(node));
-            branchAndBound(node, currentTour); //TODO not current tour
+            if(canThisBeAstartNode(node)) {
+                LinkedList<Location> currentTour = new LinkedList<Location>();
+                currentTour.add(locationMap.get(node));
+                branchAndBound(node, currentTour);
+            }
         }
-
-        setSolution(calculateUpperBound(currentTour),currentTour);
 	}
-
 
     public void branchAndBound(final int node, LinkedList<Location> tour) {
         //pick the closest to this node
@@ -49,13 +49,13 @@ public class ETSPPC extends AbstractETSPPC {
                 if(!violatedConstraint(neighbors[i], tour)) //can this node be picked? //TODO, if not picked, add later
                 {
                     tour.add(locationMap.get(neighbors[i])); //TODO branch here?
-                }
+                } //if not violated constraint but some other shit has to come first
             }
         }
 
         //if no more nodes left, and this solution is better than currentTour, set the solution
         if(tour.size() == locationArray.size()) { //TODO and current upper bound check
-            if(calculateUpperBound(tour) <= calculateUpperBound(currentTour)) currentTour = tour; //TODO is this check necessary?
+            if(calculateUpperBound(tour) <= calculateUpperBound(bestTour)) bestTour = tour; //TODO is this check necessary?
             return;
         }
 
@@ -78,6 +78,7 @@ public class ETSPPC extends AbstractETSPPC {
                 }
                 if(violatedConstraint(pc.getFirst(), tour)) return true; // check if there is a constraint for the previous node
             }
+
         }
         return false; // otherwise, you will live to see another day
     }
@@ -95,15 +96,9 @@ public class ETSPPC extends AbstractETSPPC {
             Integer[] greedyNodes = new Integer[locationMap.size()-1];
             Map<Double, Integer> distances = new HashMap<Double, Integer>();
 
-            for(int j = i+1; j < locationArray.size(); j++) {
-                //order J nodes depending on their distance to I
-                Location l1 = locationArray.get(j);
-                Location l2 = locationArray.get(i);
-
-                Double temp = locationArray.get(j).distanceTo(locationArray.get(i));
-                double tt = locationArray.get(j).distanceTo(locationArray.get(i));
-                int wtf = j;
-                distances.put(locationArray.get(j).distanceTo(locationArray.get(i)), j+1);
+            for(int j = 0; j < locationArray.size(); j++) //order J nodes depending on their distance to I
+            {
+                if(j != i) distances.put(locationArray.get(j).distanceTo(locationArray.get(i)), j+1);
             }
 
             //order the nodes from the HashMap based on distance into an Integer[]
@@ -116,5 +111,19 @@ public class ETSPPC extends AbstractETSPPC {
             }
             closestNodes.put(i+1,greedyNodes);
         }
+    }
+
+    /**
+     * checks if this node doesnt have any first constraints on it
+     *
+     * @param startNode     node to be checked
+     * @return              true, if this node doesn't have any nodes before it
+     */
+    public boolean canThisBeAstartNode(int startNode) {
+
+        for (int i = 0; i < constraintList.size(); i++) {
+            if(constraintList.get(i).getSecond() == startNode) return false;
+        }
+        return true;
     }
 }
