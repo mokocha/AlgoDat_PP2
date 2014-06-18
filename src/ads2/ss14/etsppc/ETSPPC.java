@@ -44,8 +44,10 @@ public class ETSPPC extends AbstractETSPPC {
         System.out.println(currentTour.toString() + "\t trying to add " + node);
 
         //is this solution above the upper bound? should i check at the end?
-        if(calculateUpperBound(currentTour) >= threshold)
+        if(calculateUpperBound(currentTour) >= threshold) {
+            System.out.println("ending \t" + calculateUpperBound(currentTour));
             return;
+        }
 
         if(!currentTour.contains(node)) //is this node in the tour already?
         {
@@ -54,19 +56,21 @@ public class ETSPPC extends AbstractETSPPC {
                 currentTour.add(locationMap.get(node));
 
                 //if no more nodes left, and this solution is better than currentTour, set the solution
-                if(currentTour.size() == locationArray.size()) {
+                if(currentTour.size() == locationArray.size() && calculateUpperBound(currentTour) < calculateUpperBound(bestTour)) {
                     bestTour = currentTour;
                     System.out.println("ending with solution " + currentTour.toString());
                     return;
                 }
 
                 for(int i = 1; i <= locationArray.size(); i++) //CHOOSE NEXT NODE AND CONTINUE!!!!!!
-                {
+                { //System.out.println(".");
                     if(!currentTour.contains(locationArray.get(i-1)))
                     {
+                        LinkedList<Location> temp = new LinkedList<Location>(currentTour);
                         System.out.println(currentTour.toString() + "\t branching to " + i);
-                        if(!violatedConstraint(i, currentTour)) branchAndBound(i, currentTour);
+                        if(!violatedConstraint(i, currentTour)) branchAndBound(i, temp);
                         else System.out.println(currentTour.toString() + "\t Constraint violation " + i);
+
                     } else System.out.println(currentTour.toString() + "\t already contains " + i);
                 }
             } else System.out.println(currentTour.toString() + "\t Constraint violation " + node);
