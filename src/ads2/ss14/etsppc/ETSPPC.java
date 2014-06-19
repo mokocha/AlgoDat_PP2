@@ -7,6 +7,7 @@ public class ETSPPC extends AbstractETSPPC {
     private final ArrayList<Location> locationArray;
     private final ArrayList<PrecedenceConstraint> constraintList;
     private final HashMap<Integer, Location> locationMap;
+    private double lowerBound;
     private double upperBound;
 
     private Double[][] distanceMatrix;
@@ -27,11 +28,14 @@ public class ETSPPC extends AbstractETSPPC {
 	@Override
 	public void run() {
 
+        lowerBound = 0.0;
+        calculateLowerBound();
+        upperBound = nearestNeighbourUpperBound(1);
+
         /** branch and bound **/
         for(int node = 1; node <= locationMap.size(); node++) {
             if(canThisBeAstartNode(node)) {
                 //calculate upper bound for this start node
-                upperBound = nearestNeighbourUpperBound(node);
                 LinkedList<Location> currentTour = new LinkedList<Location>();
                 branchAndBound(node, currentTour);
             }
@@ -172,7 +176,7 @@ public class ETSPPC extends AbstractETSPPC {
 
             if(!neighborRun.contains(locationArray.get(i-1)) && !violatedConstraint(i, neighborRun)) //if the node is not in the tour yes
             {
-                double distTOthisNode = distanceMatrix[neighborRun.get(neighborRun.size()-1).getCityId()-1][i-1];;
+                double distTOthisNode = distanceMatrix[neighborRun.get(neighborRun.size()-1).getCityId()-1][i-1];
 
                 if(dist > distTOthisNode) {
                     dist = distTOthisNode;
@@ -181,5 +185,24 @@ public class ETSPPC extends AbstractETSPPC {
             }
         }
         neighborRun.add(locationArray.get(id-1));
+    }
+
+    public void calculateLowerBound() {
+        double lowestBound = 0.0;
+
+        for (int i = 0; i < locationArray.size(); i++) {
+            double smallest = Double.MAX_VALUE;
+
+            for (int j = 0; j < locationArray.size(); j++) {
+                double localSmall = distanceMatrix[i][j];
+
+                if (smallest > localSmall && localSmall != 0.0) {
+                    smallest = localSmall;
+                }
+            }
+
+            lowestBound += smallest;
+        }
+        lowerBound = lowestBound;
     }
 }
