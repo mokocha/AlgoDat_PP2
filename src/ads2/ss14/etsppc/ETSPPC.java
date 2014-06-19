@@ -7,7 +7,7 @@ public class ETSPPC extends AbstractETSPPC {
     private final ArrayList<Location> locationArray;
     private final ArrayList<PrecedenceConstraint> constraintList;
     private final HashMap<Integer, Location> locationMap;
-    private final double threshold;
+    private double upperBound;
 
     private Double[][] distanceMatrix;
     private LinkedList<Location> bestTour;
@@ -17,7 +17,6 @@ public class ETSPPC extends AbstractETSPPC {
         constraintList = (ArrayList<PrecedenceConstraint>) instance.getConstraints();
         locationMap = (HashMap<Integer, Location>) instance.getAllLocations();
         locationArray = new ArrayList<Location>(instance.getAllLocations().values());
-        threshold = instance.getThreshold();
 
         bestTour = new LinkedList<Location>();
         distanceMatrix = new Double[locationArray.size()][locationArray.size()];
@@ -31,21 +30,22 @@ public class ETSPPC extends AbstractETSPPC {
         /** branch and bound **/
         for(int node = 1; node <= locationMap.size(); node++) {
             if(canThisBeAstartNode(node)) {
+                //calculate upper bound for this start node
+                upperBound = nearestNeighbourUpperBound(node);
                 LinkedList<Location> currentTour = new LinkedList<Location>();
                 branchAndBound(node, currentTour);
             }
         }
-        System.out.println("solution " + bestTour.toString());
         setSolution(calculateUpperBound(bestTour), bestTour);
 	}
 
     public void branchAndBound(int node, LinkedList<Location> currentTour) {
 
-        System.out.println(currentTour.toString() + "\t trying to add " + node);
+        //System.out.println(currentTour.toString() + "\t trying to add " + node);
 
         //is this solution above the upper bound? should i check at the end?
-        if(calculateUpperBound(currentTour) >= threshold) {
-            System.out.println("ending \t" + calculateUpperBound(currentTour));
+        if(calculateUpperBound(currentTour) >= upperBound) {
+            //System.out.println("ending \t" + calculateUpperBound(currentTour));
             return;
         }
 
@@ -56,9 +56,10 @@ public class ETSPPC extends AbstractETSPPC {
                 currentTour.add(locationMap.get(node));
 
                 //if no more nodes left, and this solution is better than currentTour, set the solution
-                if(currentTour.size() == locationArray.size() && calculateUpperBound(currentTour) < calculateUpperBound(bestTour)) {
-                    bestTour = currentTour;
-                    System.out.println("ending with solution " + currentTour.toString());
+                if(currentTour.size() == locationArray.size()) {
+                    if(bestTour.size() == 0) bestTour = new LinkedList<Location>(currentTour);
+                    else if(calculateUpperBound(currentTour) < calculateUpperBound(bestTour)) bestTour = new LinkedList<Location>(currentTour);
+                    //System.out.println("ending with solution " + currentTour.toString());
                     return;
                 }
 
@@ -67,14 +68,14 @@ public class ETSPPC extends AbstractETSPPC {
                     if(!currentTour.contains(locationArray.get(i-1)))
                     {
                         LinkedList<Location> temp = new LinkedList<Location>(currentTour);
-                        System.out.println(currentTour.toString() + "\t branching to " + i);
+                        //System.out.println(currentTour.toString() + "\t branching to " + i);
                         if(!violatedConstraint(i, currentTour)) branchAndBound(i, temp);
-                        else System.out.println(currentTour.toString() + "\t Constraint violation " + i);
+                        //else System.out.println(currentTour.toString() + "\t Constraint violation " + i);
 
-                    } else System.out.println(currentTour.toString() + "\t already contains " + i);
+                    } //else System.out.println(currentTour.toString() + "\t already contains " + i);
                 }
-            } else System.out.println(currentTour.toString() + "\t Constraint violation " + node);
-        } else System.out.println(currentTour.toString() + "\t already contains " + node);
+            } //else System.out.println(currentTour.toString() + "\t Constraint violation " + node);
+        } //else System.out.println(currentTour.toString() + "\t already contains " + node);
     }
 
     /**
@@ -144,20 +145,41 @@ public class ETSPPC extends AbstractETSPPC {
         return distances;
     }
 
-//    /**
-//     * Choose the next node to go to
-//     *
-//     * @param currentTour       where we have been
-//     * @param destinations      where we can go
-//     * @return                  where we want to go
-//     */
-//    public int chooseNextNode(LinkedList<Location> currentTour, Double[] destinations) {
-//
-//        for (int i = 0; i < locationArray.size(); i++) {
-//            if(!currentTour.contains(i+1)) {
-//
-//            }
-//        }
-//        return 0;
-//    }
+    public double nearestNeighbourUpperBound(int node) {
+
+        LinkedList<Location> neighborRun = new LinkedList<Location>();
+        neighborRun.add(locationArray.get(node-1));
+
+        while(neighborRun.size() < locationArray.size()) {
+            chooseNextNode(neighborRun);
+        }
+        return calculateUpperBound(neighborRun);
+    }
+
+    /**
+     * Choose the next node to go to
+     *
+     * @param neighborRun       where we have been
+     * @return                  where we will go
+     */
+    public void chooseNextNode(LinkedList<Location> neighborRun) {
+
+        int id = 0;
+        double dist = Double.MAX_VALUE;
+
+        //get the closest node
+        for (int i = 1; i <= locationArray.size(); i++) {
+
+            if(!neighborRun.contains(locationArray.get(i-1)) && !violatedConstraint(i, neighborRun)) //if the node is not in the tour yes
+            {
+                double distTOthisNode = distanceMatrix[neighborRun.get(neighborRun.size()-1).getCityId()-1][i-1];;
+
+                if(dist > distTOthisNode) {
+                    dist = distTOthisNode;
+                    id = i;
+                }
+            }
+        }
+        neighborRun.add(locationArray.get(id-1));
+    }
 }
