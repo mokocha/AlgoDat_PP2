@@ -9,7 +9,6 @@ public class ETSPPC extends AbstractETSPPC {
     private final HashMap<Integer, Location> locationMap;
     private final double threshold;
     private double lowerBound;
-    private double upperBound;
 
     private Double[][] distanceMatrix;
     private LinkedList<Location> bestTour;
@@ -74,6 +73,21 @@ public class ETSPPC extends AbstractETSPPC {
 
         // right branching,
             branchAndBound(copyMatrix(matrix), removeNode(copyMatrix(remaining), node), new LinkedList<Location>(tour), nearest, ++visited);
+    }
+
+    /**
+     * Calculate the closest nodes for each node
+     */
+    public void calculateNNmatrix() {
+
+        for (int i = 0; i < locationArray.size(); i++)
+        {
+            for (int j = 0; j < locationArray.size(); j++)
+            {
+                if(i==j) distanceMatrix[i][j] = Double.POSITIVE_INFINITY;
+                else distanceMatrix[i][j] = locationArray.get(i).distanceTo(locationArray.get(j));
+            }
+        }
     }
 
     /**
@@ -146,25 +160,6 @@ public class ETSPPC extends AbstractETSPPC {
             }
         }
         return null;
-    }
-
-    public double calculateUpperBound(List<Location> solution) {
-        return Main.calcObjectiveValue(solution);
-    }
-
-    /**
-     * Calculate the closest nodes for each node
-     */
-    public void calculateNNmatrix() {
-
-        for (int i = 0; i < locationArray.size(); i++)
-        {
-            for (int j = 0; j < locationArray.size(); j++)
-            {
-                if(i==j) distanceMatrix[i][j] = Double.POSITIVE_INFINITY;
-                else distanceMatrix[i][j] = locationArray.get(i).distanceTo(locationArray.get(j));
-            }
-        }
     }
 
     /**
@@ -256,118 +251,6 @@ public class ETSPPC extends AbstractETSPPC {
         return sum;
     }
 
-//    /**
-//     * create an identical matrix copy for further analysis
-//     *
-//     * @param matrix        original matrix
-//     * @return              copy
-//     */
-//    public Double[][] duplicateMatrix(Double[][] matrix) {
-//        Double[][] newMatrix = new Double[matrix.length][matrix[0].length];
-//        for (int i = 0; i < matrix.length; i++) {
-//            for (int j = 0; j < matrix[0].length; j++) {
-//                newMatrix[i][j] = new Double(matrix[i][j]);
-//            }
-//        }
-//        return newMatrix;
-//    }
-
-    /**
-     * checks if this node doesnt have any first constraints on it
-     *
-     * @param startNode     node to be checked
-     * @return              true, if this node doesn't have any nodes before it
-     */
-    public boolean canThisBeAstartNode(int startNode) {
-        //TODO optimize by returning a list of possible start nodes instead
-
-        for (int i = 0; i < constraintList.size(); i++) {
-            if(constraintList.get(i).getSecond() == startNode) return false;
-        }
-        return true;
-    }
-
-    /**
-     * returns the row corresponding to the distance matrix from this node
-     *
-     * @param row       where we are
-     * @return          how far everything else is
-     */
-    public Double[] getRow(int row) {
-
-        Double[] distances = new Double[locationArray.size()];
-
-        for (int i = 0; i < locationArray.size(); i++) distances[i] = distanceMatrix[row-1][i];
-
-        return distances;
-    }
-
-    //TODO create a duplicate, where a list with already visited nodes can be supplied
-    public double nearestNeighbourUpperBound(int node) {
-
-        LinkedList<Location> neighborRun = new LinkedList<Location>();
-        neighborRun.add(locationArray.get(node-1));
-
-        while(neighborRun.size() < locationArray.size()) {
-            neighborRun.add(chooseNextNode(neighborRun));
-        }
-        System.out.println(calculateUpperBound(neighborRun) +"\t" + neighborRun.toString());
-        return calculateUpperBound(neighborRun);
-    }
-
-
-    public void branchAndBound(int node, LinkedList<Location> currentTour) {
-
-        //System.out.println(currentTour.toString() + "\t trying to add " + node);
-
-        //is this solution above the upper bound? should i check at the end?
-        if(calculateUpperBound(currentTour) >= upperBound) {
-            //System.out.println("ending \t" + calculateUpperBound(currentTour));
-            return;
-        }
-
-        double t1 = calculateUpperBound(currentTour);
-        double t2 = calculateLocalLowerBound(currentTour);
-        double t3 = t1 + t2;
-
-        //TODO remove comment to win
-        if(theoreticalCosts(currentTour) > upperBound) {
-            //if(currentTour.get(0).getCityId() == 2) System.out.println(calculateUpperBound(currentTour) + "\t"  + calculateLocalLowerBound(currentTour) + "\t" + t3 + "\t" + upperBound + "\t" + currentTour.toString());
-            return;
-        }
-
-        if(!currentTour.contains(node)) //is this node in the tour already?
-        {
-            if(!violatedConstraint(node, currentTour)) //can this node be picked?
-            {
-                currentTour.add(locationMap.get(node));
-
-                //if no more nodes left, and this solution is better than currentTour, set the solution
-                if(currentTour.size() == locationArray.size()) {
-                    if(bestTour.size() == 0) bestTour = new LinkedList<Location>(currentTour);
-                    else if(calculateUpperBound(currentTour) < calculateUpperBound(bestTour)) {
-                        bestTour = new LinkedList<Location>(currentTour);
-                        upperBound = calculateUpperBound(bestTour);
-                    }
-                    //System.out.println("ending with solution " + currentTour.toString());
-                    return;
-                }
-
-                for(int i = 1; i <= locationArray.size(); i++) //CHOOSE NEXT NODE AND CONTINUE!!!!!!
-                { //System.out.println(".");
-                    if(!currentTour.contains(locationArray.get(i-1)))
-                    {
-                        LinkedList<Location> temp = new LinkedList<Location>(currentTour);
-                        //System.out.println(currentTour.toString() + "\t branching to " + i);
-                        if(!violatedConstraint(i, currentTour)) branchAndBound(i, temp);
-                        //else System.out.println(currentTour.toString() + "\t Constraint violation " + i);
-
-                    } //else System.out.println(currentTour.toString() + "\t already contains " + i);
-                }
-            } //else System.out.println(currentTour.toString() + "\t Constraint violation " + node);
-        } //else System.out.println(currentTour.toString() + "\t already contains " + node);
-    }
-
     /**
      * Choose the next NN node to go to
      *
@@ -395,62 +278,4 @@ public class ETSPPC extends AbstractETSPPC {
         return locationArray.get(id-1);
     }
 
-//    public void calculateLowerBound() {
-//        double lowestBound = 0.0;
-//
-//        for (int i = 0; i < locationArray.size(); i++) {
-//            double smallest = Double.MAX_VALUE;
-//
-//            for (int j = 0; j < locationArray.size(); j++) {
-//                double localSmall = distanceMatrix[i][j];
-//
-//                if (smallest > localSmall && localSmall != 0.0) {
-//                    smallest = localSmall;
-//                }
-//            }
-//
-//            lowestBound += smallest;
-//        }
-//        lowerBound = lowestBound;
-//    }
-
-    public double calculateLocalLowerBound(LinkedList<Location> alreadyVisited) {
-        double lowestBound = 0.0;
-
-        ArrayList<Integer> visited = new ArrayList<Integer>();
-
-        for (int i = 0; i < alreadyVisited.size(); i++) {
-            visited.add(alreadyVisited.get(i).getCityId());
-        }
-
-        for (int i = 0; i < locationArray.size(); i++) {
-
-            if(!visited.contains(i+1)){
-                double smallest = Double.MAX_VALUE;
-
-                for (int j = 0; j < locationArray.size(); j++) {
-
-                    if(!visited.contains(i+1) && !visited.contains(j+1)) {
-
-                        double localSmall = distanceMatrix[i][j];
-
-                        if (smallest > localSmall && localSmall != 0.0) {
-                            smallest = localSmall;
-                        }
-                    }
-                }
-                lowestBound += smallest;
-            }
-        }
-        return lowestBound;
-    }
-
-    public double theoreticalCosts(LinkedList<Location> alreadyVisited) {
-
-        LinkedList<Location> theory = new LinkedList<Location>(alreadyVisited);
-
-        while (theory.size() < locationArray.size()) theory.add(chooseNextNode(theory));
-
-        return calculateUpperBound(theory);
-    }
 }
